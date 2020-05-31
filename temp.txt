@@ -1,0 +1,16 @@
+python object_detection/legacy/train.py --train_dir=./object_detection/training --pipeline_config_path=./object_detection/ssd_mobilenet_v1_pets.config --logtostderr
+python object_detection/model_main.py --train_dir=./object_detection/training --pipeline_config_path=./object_detection/ssd_mobilenet_v1_pets.config --logtostderr
+python object_detection/legacy/train.py --train_dir=./object_detection/training --pipeline_config_path=./object_detection/ssd_mobilenet_v1_pets.config --logtostderr
+
+python model_main.py --train_dir=training --pipeline_config_path=ssd_mobilenet_v2_coco.config --logtostderr
+
+SET PATH=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.0\bin;%PATH%
+SET PATH=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.0\extras\CUPTI\lib64;%PATH%
+SET PATH=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.0\include;%PATH%
+SET PATH=C:\tools\cuda\bin;%PATH%
+
+2020-05-28 02:33:02.296529: W tensorflow/stream_executor/platform/default/dso_loader.cc:55] Could not load dynamic library 'cublas64_100.dll'; dlerror: cublas64_100.dll not found
+2020-05-28 02:33:02.297836: W tensorflow/stream_executor/platform/default/dso_loader.cc:55] Could not load dynamic library 'cufft64_100.dll'; dlerror: cufft64_100.dll not found
+2020-05-28 02:33:02.299114: W tensorflow/stream_executor/platform/default/dso_loader.cc:55] Could not load dynamic library 'curand64_100.dll'; dlerror: curand64_100.dll not found
+2020-05-28 02:33:02.300365: W tensorflow/stream_executor/platform/default/dso_loader.cc:55] Could not load dynamic library 'cusolver64_100.dll'; dlerror: cusolver64_100.dll not found
+2020-05-28 02:33:02.308969: W tensorflow/stream_executor/platform/default/dso_loader.cc:55] Could not load dynamic library 'cusparse64_100.dll'; dlerror: cusparse64_100.dll not found
