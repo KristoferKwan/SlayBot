@@ -4,10 +4,13 @@ import time
 
 env = BlobEnv()
 env.reset()
+i = 0
 
-while True:
+while i < 20000:
+    if i % 100 == 0:
+        env.reset()
     action = random.randint(0, 8)
     env.step(action)
     env.render()
-    time.sleep(.3)
+    i += 1
     #input("press enter to continue")

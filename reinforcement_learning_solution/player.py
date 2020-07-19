@@ -2,6 +2,7 @@ import numpy as np
 import random
 from time import sleep
 from projectile import Projectile
+import blobenv
 SIZE = 10
 PLAYER_N = 1  # player key in dict
 FOOD_N = 2  # food key in dict
@@ -54,6 +55,7 @@ class Player:
         '''
         Gives us 9 total movement options. (0,1,2,3,4,5,6,7,8)
         '''
+        #blobenv.render_env_image(env)
         if choice == 0:
             self.move(env, x=1, y=1)
         elif choice == 1:
@@ -88,9 +90,9 @@ class Player:
         if self.health <= 0:
             self.kill = True
 
-    def valid_tile(self, env):
+    def valid_tile(self, env): # checks to see on the collision env if you are on a valid tile of the game, ie not an enemy nor an obstacle
         curr_position = env[self.y][self.x].tolist()
-        return curr_position != d[OBSTACLE_N] and curr_position != d[ENEMY_N] and curr_position != d[PLAYER_N]
+        return curr_position != d[OBSTACLE_N] and curr_position != d[ENEMY_N]
 
     def move(self, env, x=False, y=False):
 
@@ -98,13 +100,13 @@ class Player:
         old_x = self.x
         old_y = self.y
         
-        if not x:
+        if not x and type(x) != int:
             self.x += np.random.randint(-1, 2)
         else:
             self.x += x
 
         # If no value for y, move randomly
-        if not y:
+        if not y and type(y) != int:
             self.y += np.random.randint(-1, 2)
         else:
             self.y += y
@@ -116,9 +118,6 @@ class Player:
         if self.x < 0:
             self.x = 0
             self.hit_wall = 1
-        elif not self.valid_tile(env):
-            self.x = old_x
-            self.hit_wall = 1
         elif self.x > self.size-1:
             self.x = self.size-1
             self.hit_wall = 1
@@ -126,9 +125,13 @@ class Player:
         if self.y < 0:
             self.y = 0
             self.hit_wall = 1
-        elif not self.valid_tile(env):
-            self.y = old_y
-            self.hit_wall = 1
         elif self.y > self.size-1:
             self.y = self.size-1
+            self.hit_wall = 1
+
+        if not self.valid_tile(env):
+            self.x = old_x
+            self.hit_wall = 1
+        if not self.valid_tile(env):
+            self.y = old_y
             self.hit_wall = 1

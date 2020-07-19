@@ -26,11 +26,11 @@ MODEL_NAME = '2x256'
 MIN_REWARD = -200  # For model save
 MEMORY_FRACTION = 0.20
 HYPERPARAM_DEBUGGING=True
-dense_layers = [0, 1, 2]
-layer_sizes = [32, 64, 128]
+dense_layers = [0, 2, 4, 8, 10, 20]
+layer_sizes = [64]
 
 # Environment settings
-EPISODES = 200
+EPISODES = 150
 
 # Exploration settings
 epsilon = 1  # not a constant, going to be decayed
@@ -214,7 +214,9 @@ if __name__ == "__main__":
 
             # Append episode reward to a list and log stats (every given number of episodes)
             ep_rewards[i].append(episode_reward)
+            print(f"episode {episode} finished after {step} steps. final reward: {episode_reward}")
             if not episode % AGGREGATE_STATS_EVERY or episode == 1:
+                #print(f"--------------------------------------\nep rewards[{i}]: {ep_rewards[i]}--------------------------------------\n")
                 average_reward = sum(ep_rewards[i][-AGGREGATE_STATS_EVERY:])/len(ep_rewards[i][-AGGREGATE_STATS_EVERY:])
                 min_reward = min(ep_rewards[i][-AGGREGATE_STATS_EVERY:])
                 max_reward = max(ep_rewards[i][-AGGREGATE_STATS_EVERY:])

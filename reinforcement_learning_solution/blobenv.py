@@ -12,6 +12,13 @@ import math
 import copy
 import time
 
+
+def render_env_image(env):
+    img = Image.fromarray(env, 'RGB')
+    img = img.resize((300, 300), resample=Image.BOX)  # resizing so we can see our agent in all its glory.
+    cv2.imshow("image", np.array(img))  # show it!
+    cv2.waitKey(1)
+
 class BlobEnv:
     SIZE = 60
     RETURN_IMAGES = False
@@ -19,10 +26,10 @@ class BlobEnv:
     NUM_ENEMIES = 5
     MOVE_PENALTY = 1
     DEATH_PENALTY = 500
-    OBSTACLE_PENALTY = 25
+    OBSTACLE_PENALTY = 5
     HIT_PENALTY = 100
     KILL_REWARD = 500
-    ITEM_REWARD = 100
+    ITEM_REWARD = 150
     OBSERVATION_SPACE_VALUES = (52, 4)  # 4
     ACTION_SPACE_SIZE = 9
     PLAYER_N = 1  # player key in dict
@@ -168,10 +175,20 @@ class BlobEnv:
         return -1
 
     def reset(self):
+        self.obstacles = list()
+        self.items = list()
+        self.spawn_points = list()
+        self.projectiles = dict()
+        self.players = list()
+        self.player_dict = dict()
+        self.available_player_slots = [0] * 20
+        self.available_projectile_slots = [0] * 20
+        self.playerid_observation_slot = dict()  # playerID: index in env
+        self.projectileid_observation_slot = dict()  # index in env: projectileID
         self.generate_obstacles("the_bay")
         spawning_point = random.choice(self.spawn_points)
         # spawning_point = self.spawn_points[0]
-        self.player = Player(self.SIZE, {"x": 14, "y": 20}, 107, ID=1)
+        self.player = Player(self.SIZE, spawning_point, 107, ID=1)
         self.add_player(self.player)
 
         locations = set()
@@ -302,6 +319,7 @@ class BlobEnv:
         self.player.action(action, False, self.projectiles, self.collision_env, None)
         if self.player.hit_wall == 1:
             reward -= self.OBSTACLE_PENALTY
+            # print(f"hit an obstacle. Minus {self.OBSTACLE_PENALTY}")
         # if self.HAVE_ENEMY: ## for player movement in the future
         #     self.enemy.move(self.env)
 
@@ -309,14 +327,12 @@ class BlobEnv:
         # enemy.move()
         # food.move()
         ##############
-        item_update = list()
 
         for item in self.items:
-            if self.player.x == item.x and self.player.y == item.y:
+            if item.available and self.player.x == item.x and self.player.y == item.y:
                 reward += self.ITEM_REWARD
-            else:
-                item_update.append(item)
-        self.items = item_update
+                item.available = 0
+                # print(f"got an item. Plus {self.ITEM_REWARD} points")
 
         collision_env = copy.copy(self.default_env)
         for player in self.players:
@@ -338,10 +354,10 @@ class BlobEnv:
                 player.took_damage(projectile_object.damage)
                 if player == self.player:
                     reward -= self.HIT_PENALTY
+                    # print("you got hit?")
                 else:
                     reward += self.KILL_REWARD
-
-
+                    # print("you killed a player somehow..")
 
         if self.RETURN_IMAGES:
             new_observation = np.array(self.get_image())
@@ -361,6 +377,7 @@ class BlobEnv:
             done = True
 
         return new_observation, enemyTargetObservations, reward, done
+
 
     def render(self):        
         img = self.get_image()
@@ -397,10 +414,11 @@ class BlobEnv:
                 env[player.y][player.x] = self.d[self.PLAYER_N]
 
         for item in self.items:
-            if item.weapon == 1001 or item.weapon == 1000:
-                env[item.y][item.x] = self.d[self.HEALINGITEM_N]
-            else:
-                env[item.y][item.x] = self.d[self.WEAPON_N]
+            if item.available:
+                if item.weapon == 1001 or item.weapon == 1000:
+                    env[item.y][item.x] = self.d[self.HEALINGITEM_N]
+                else:
+                    env[item.y][item.x] = self.d[self.WEAPON_N]
         self.env = env
         img = Image.fromarray(self.env, 'RGB')  # reading to rgb. Apparently. Even tho color definitions are bgr. ???
         return img
