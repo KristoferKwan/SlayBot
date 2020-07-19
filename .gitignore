@@ -1,2 +1,14 @@
 object_detection/
 images/
+.idea/
+.vscode/
+__pycache__/
+chromedriver.exe
+checkpoint
+debug.log
+deep_learning_solution
+logs/
+models/
+slay-bot/
+training_data_v2.npy
+velocity.PNG

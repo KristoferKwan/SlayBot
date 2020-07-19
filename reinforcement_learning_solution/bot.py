@@ -5,7 +5,6 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
 import pyautogui
-import process_canvas
 import time
 from matplotlib import pyplot as plt
 import cv2
@@ -60,7 +59,7 @@ class Bot():
         print(len(rooms))
         for room in rooms:
             print(room.find_element_by_class_name("roomFieldMapName").text.lower())
-            if room.find_element_by_class_name("roomFieldMapName").text.lower() == stage_name:
+            if room.find_element_by_class_name("roomFieldMapName").text.lower() == stage_name.lower():
                 room.find_element_by_xpath(".//*[contains(text(), 'JOIN')]").click()
                 return
         self.driver.find_element_by_xpath("//*[contains(text(), 'CREATE')]").click()
@@ -131,32 +130,4 @@ class Bot():
     def fire_weapon(self):
         self.holdMouseButton("left", 500, 500)
 
-def main():
-    
-    bots = []
-    for i in range(1):
-        newname = ""
-        print(newname)
-        test = Bot(newname, 0, 0, 0)
-        test.connect(login=True, stage="the bay")
-        bots.append(test)
-    for i in range(len(bots)):
-        bots[i].start()
-    
-    # bots[0].move_up()
-    # bots[0].move_left()
-    # bots[0].move_down()
-    # bots[0].move_right()
-    # bots[0].jump()
-
-    process_canvas.determine_velocity(bots[0].driver)
-    # im = cv2.imread("./object_detection/sprites_new/1-slay.jpeg", 0)
-    # im=process_canvas.process_img(im)
-    # plt.imshow(im)
-    # plt.show()
-    input("Enter anything to quit")
-    for i in range(len(bots)):
-        bots[i].quit()
-        
-main()
     

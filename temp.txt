@@ -14,3 +14,7 @@ SET PATH=C:\tools\cuda\bin;%PATH%
 2020-05-28 02:33:02.299114: W tensorflow/stream_executor/platform/default/dso_loader.cc:55] Could not load dynamic library 'curand64_100.dll'; dlerror: curand64_100.dll not found
 2020-05-28 02:33:02.300365: W tensorflow/stream_executor/platform/default/dso_loader.cc:55] Could not load dynamic library 'cusolver64_100.dll'; dlerror: cusolver64_100.dll not found
 2020-05-28 02:33:02.308969: W tensorflow/stream_executor/platform/default/dso_loader.cc:55] Could not load dynamic library 'cusparse64_100.dll'; dlerror: cusparse64_100.dll not found
+
+python3 export_inference_graph.py --input_type image_tensor --pipeline_config_path ssd_mobilenet_v2_coco.config --trained_checkpoint_prefix training/model.ckpt-32192 --output_directory slay_player_inference_graph
+
+C:\Users\krist\AppData\Local\Temp\tmpt7jdsry5

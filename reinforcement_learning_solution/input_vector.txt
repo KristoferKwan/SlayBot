@@ -1,0 +1,38 @@
+[
+    healthbar, weaponEquippedNumber, grenade ammo, flamethrower ammo, 
+    rocket launcher ammo... (11 total weapons),
+    ammo, 0, 0, 0
+    healthbar, enemy1x, enemy1y, direction,
+    healthbar, enemy2x, enemy2y, direction,
+    healthbar, enemy3x, enemy3y, direction,
+    healthbar, enemy4x, enemy4y, direction,
+    healthbar, enemy5x, enemy5y, direction,
+    projectileOwner(can just be boolean for either you or opponent), projectilex, projectiley, projectilespeed,
+    projectileOwner(can just be boolean for either you or opponent), projectilex, projectiley, projectilespeed,
+    projectileOwner(can just be boolean for either you or opponent), projectilex, projectiley, projectilespeed,
+    projectileOwner(can just be boolean for either you or opponent), projectilex, projectiley, projectilespeed,
+    projectileOwner(can just be boolean for either you or opponent), projectilex, projectiley, projectilespeed,
+    itemid, itemx, itemy, 0
+    itemid, itemx, itemy, 0
+    itemid, itemx, itemy, 0
+    itemid, itemx, itemy, 0
+    itemid, itemx, itemy, 0
+]
+
+
+output:
+[
+    move up, 
+    move up right, 
+    move right, 
+    move downright, 
+    move down,
+    move downleft,
+    move left,
+    move upleft,
+    jump,
+    fire weapon,
+    switch to grenade... 12 weapons(including laser),
+    aimx,
+    aimy
+]
