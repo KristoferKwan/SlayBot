@@ -25,12 +25,12 @@ UPDATE_TARGET_EVERY = 5  # Terminal states (end of episodes)
 MODEL_NAME = '2x256'
 MIN_REWARD = -200  # For model save
 MEMORY_FRACTION = 0.20
-HYPERPARAM_DEBUGGING=True
-dense_layers = [0, 2, 4, 8, 10, 20]
-layer_sizes = [64]
+HYPERPARAM_DEBUGGING=False
+dense_layers = [0, 1, 2]
+layer_sizes = [32, 64, 128]
 
 # Environment settings
-EPISODES = 150
+EPISODES = 20000
 
 # Exploration settings
 epsilon = 1  # not a constant, going to be decayed
@@ -106,7 +106,7 @@ class DQNAgent:
             inputs = Input(shape=envs[0].OBSERVATION_SPACE_VALUES)
             movement_branch = self.build_movement_branch(inputs)
             model = Model(inputs=inputs,outputs=[movement_branch], name="movementnet")
-            model.compile(loss="mse", optimizer=Adam(lr=0.001), metrics=['accuracy'])
+            model.compile(loss="mse", optimizer=Adam(lr=0.0001), metrics=['accuracy'])
 
         return model
 
@@ -177,8 +177,8 @@ if __name__ == "__main__":
                     os.makedirs(f'models/{layer_size}x{dense_layer}')
     else:
         envs.append(BlobEnv())
-        agents.append(DQNAgent())
-        ep_rewards.append(-200)
+        agents.append(DQNAgent(64,2))
+        ep_rewards.append([-200])
         if not os.path.isdir('models/official'):
             os.makedirs('models/official')
 
