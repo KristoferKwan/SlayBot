@@ -23,6 +23,7 @@ class BlobEnv:
     SIZE = 60
     RETURN_IMAGES = False
     HAVE_ENEMY = True
+    USE_SPAWNPOINTS = False
     NUM_ENEMIES = 5
     MOVE_PENALTY = 1
     DEATH_PENALTY = 500
@@ -30,7 +31,7 @@ class BlobEnv:
     HIT_PENALTY = 100
     KILL_REWARD = 500
     ITEM_REWARD = 150
-    OBSERVATION_SPACE_VALUES = (52, 4)  # 4
+    OBSERVATION_SPACE_VALUES = (52, 4, 1)  # 4
     ACTION_SPACE_SIZE = 9
     PLAYER_N = 1  # player key in dict
     FOOD_N = 2  # food key in dict
@@ -174,6 +175,22 @@ class BlobEnv:
                     return i
         return -1
 
+    def valid_tile(self, env, x, y): # checks to see on the collision env if you are on a valid tile of the game, ie not an enemy nor an obstacle
+        curr_position = env[y][x].tolist()
+        return curr_position != self.d[self.OBSTACLE_N] and \
+               curr_position != self.d[self.ENEMY_N] and \
+               curr_position != self.d[self.PLAYER_N] and \
+               curr_position != self.d[self.HEALINGITEM_N] and \
+               curr_position != self.d[self.WEAPON_N]
+
+    def get_random_spawnpoint(self):
+        x = random.randint(0, 40)
+        y = random.randint(0, 40)
+        while not self.valid_tile(self.collision_env, x, y):
+            x = random.randint(0, 40)
+            y = random.randint(0, 40)
+        return {"x": x, "y": y}
+
     def reset(self):
         self.obstacles = list()
         self.items = list()
@@ -186,8 +203,11 @@ class BlobEnv:
         self.playerid_observation_slot = dict()  # playerID: index in env
         self.projectileid_observation_slot = dict()  # index in env: projectileID
         self.generate_obstacles("the_bay")
-        spawning_point = random.choice(self.spawn_points)
-        # spawning_point = self.spawn_points[0]
+        if self.USE_SPAWNPOINTS:
+            spawning_point = random.choice(self.spawn_points)
+        else:
+            spawning_point = self.get_random_spawnpoint()
+            self.collision_env[spawning_point["y"]][spawning_point["x"]] = self.d[self.PLAYER_N]
         self.player = Player(self.SIZE, spawning_point, 107, ID=1)
         self.add_player(self.player)
 
@@ -197,10 +217,16 @@ class BlobEnv:
 
         if self.HAVE_ENEMY:
             for i in range(self.NUM_ENEMIES):
-                enemy = Player(self.SIZE, random.choice(self.spawn_points), 25, ID=i+2)
-                location = (enemy.x, enemy.y)
-                while location in locations:
+                if self.USE_SPAWNPOINTS:
                     enemy = Player(self.SIZE, random.choice(self.spawn_points), 25, ID=i+2)
+                    location = (enemy.x, enemy.y)
+                    while location in locations:
+                        enemy = Player(self.SIZE, random.choice(self.spawn_points), 25, ID=i+2)
+                        location = (enemy.x, enemy.y)
+                else:
+                    spawning_point = self.get_random_spawnpoint()
+                    self.collision_env[spawning_point["y"]][spawning_point["x"]] = self.d[self.ENEMY_N]
+                    enemy = Player(self.SIZE, spawning_point, 25, ID=i + 2)
                     location = (enemy.x, enemy.y)
                 locations.add(location)
                 self.add_player(enemy)

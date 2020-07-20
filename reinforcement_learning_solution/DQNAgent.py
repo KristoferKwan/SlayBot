@@ -2,7 +2,8 @@ from keras.models import Sequential, load_model
 from keras.layers import Dense, Dropout, Conv2D, MaxPooling2D, Activation, Flatten
 from tensorflow.keras.layers import Input
 from keras.callbacks import TensorBoard
-from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.optimizers import Adam as AdamKeras
+from keras.optimizers import Adam
 from collections import deque
 from modifiedTensorBoard import ModifiedTensorBoard
 import numpy as np
@@ -25,6 +26,7 @@ UPDATE_TARGET_EVERY = 5  # Terminal states (end of episodes)
 MODEL_NAME = '2x256'
 MIN_REWARD = -200  # For model save
 MEMORY_FRACTION = 0.20
+USE_CONV_NET = True
 HYPERPARAM_DEBUGGING=False
 dense_layers = [0, 1, 2]
 layer_sizes = [32, 64, 128]
@@ -73,6 +75,27 @@ class DQNAgent:
         model = tf.keras.layers.Dense(numCategories, activation=finalAct)(model)
         return model
 
+    def build_conv_branch(self, num_layers=1, finalAct="linear"):
+        model = Sequential()
+
+        model.add(Conv2D(256, (1, 1), input_shape=envs[0].OBSERVATION_SPACE_VALUES))
+        model.add(Activation("relu"))
+        model.add(MaxPooling2D(2, 2))
+        model.add(Dropout(0.2))
+
+        for i in range(num_layers):
+            model.add(Conv2D(256, (1, 1), input_shape=envs[0].OBSERVATION_SPACE_VALUES))
+            model.add(Activation("relu"))
+            model.add(MaxPooling2D(2, 2))
+            model.add(Dropout(0.2))
+            model.add(Flatten())
+            model.add(Dense(64, activation="relu"))
+
+        model.add(Dense((envs[0].ACTION_SPACE_SIZE), activation=finalAct))
+        model.compile(loss="mse", optimizer=Adam(lr=0.001), metrics=['accuracy'])
+        return model
+
+
     def build_movement_branch(self, inputs):
         return self.build_branch(inputs, 9, self.dense_layer, "linear")
 
@@ -93,8 +116,7 @@ class DQNAgent:
             target_branch = self.build_target_branch(inputs)
 
             model = Model(inputs=inputs,outputs=[fire_weapon_branch, target_branch], name="projectilenet")
-            model.compile(loss="mse", optimizer=Adam(lr=0.001), metrics=['accuracy'])
-
+            model.compile(loss="mse", optimizer=AdamKeras(lr=0.001), metrics=['accuracy'])
         return model
 
     def create_movement_model(self):
@@ -103,28 +125,40 @@ class DQNAgent:
             model = load_model(LOAD_MODEL)
             print(f"Model {LOAD_MODEL} is now loaded!")
         else:
-            inputs = Input(shape=envs[0].OBSERVATION_SPACE_VALUES)
-            movement_branch = self.build_movement_branch(inputs)
-            model = Model(inputs=inputs,outputs=[movement_branch], name="movementnet")
-            model.compile(loss="mse", optimizer=Adam(lr=0.0001), metrics=['accuracy'])
-
+            if not USE_CONV_NET:
+                inputs = Input(shape=envs[0].OBSERVATION_SPACE_VALUES)
+                movement_branch = self.build_movement_branch(inputs)
+                model = Model(inputs=inputs,outputs=[movement_branch], name="movementnet")
+                model.compile(loss="mse", optimizer=AdamKeras(lr=0.001), metrics=['accuracy'])
+            else:
+                print("using a convolutional neural network to see if loss improves")
+                model = self.build_conv_branch()
         return model
 
     def update_replay_memory(self, transition, model):
         self.replay_memory[model].append(transition)
 
     def get_qs(self, state, model):
-        return self.model[model].predict(np.array(state.reshape(-1, *state.shape)/100)[0])
+        # input_m = np.array(state.reshape(-1, *state.shape)/100)[0]
+        # print(f"input into the model: {input_m}")
+        # input("waiting for user input to continue")
+        return self.model[model].predict(np.array(state.reshape(-1, *state.shape, 1)/100)[0])
 
     def train(self, terminal_state, step, model, replay_memory):
         if len(self.replay_memory[replay_memory]) < MIN_REPLAY_MEMORY_SIZE:
             return
         minibatch = random.sample(self.replay_memory[replay_memory], MINIBATCH_SIZE)
         current_states = np.array([transition[0] for transition in minibatch])/100
-        current_qs_list = self.model[model].predict(current_states) #crazy model fitting every step
+        if not USE_CONV_NET:
+            current_qs_list = self.model[model].predict(current_states) #crazy model fitting every step
+        else:
+            current_qs_list = self.model[model].predict(current_states.reshape(64, 52, 4, 1))
 
         new_current_states = np.array([transition[3] for transition in minibatch])/100
-        future_qs_list = self.target_model[model].predict(new_current_states)
+        if not USE_CONV_NET:
+            future_qs_list = self.target_model[model].predict(new_current_states)
+        else:
+            future_qs_list = self.target_model[model].predict(new_current_states.reshape(64, 52, 4, 1))
 
         X = []
         Y = []
@@ -142,7 +176,7 @@ class DQNAgent:
             X.append(current_state)
             Y.append(current_qs)
 
-        self.model[model].fit(np.array(X)/100,np.array(Y), batch_size = MINIBATCH_SIZE, verbose = 0, shuffle=False, callbacks=[self.tensorboard] if terminal_state else None)
+        self.model[model].fit(np.array(X).reshape(64, 52, 4, 1)/100,np.array(Y), batch_size = MINIBATCH_SIZE, verbose = 0, shuffle=False, callbacks=[self.tensorboard] if terminal_state else None)
 
         # updating to determine if we want to update target_model yet
         if terminal_state:
@@ -195,7 +229,7 @@ if __name__ == "__main__":
 
             while not done:
                 if np.random.random() > epsilon:
-                    action = np.argmax(agents[i].get_qs(current_state, "movement"))
+                    action = np.argmax(agents[i].get_qs(np.array([current_state]), "movement"))
                 else:
                     action = np.random.randint(0, envs[i].ACTION_SPACE_SIZE)
 
@@ -225,3 +259,7 @@ if __name__ == "__main__":
                 # Save model, but only when min reward is greater or equal a set value
                 if average_reward >= MIN_REWARD:
                     agents[i].model["movement"].save(f'models/{agents[i].layer_size}x{agents[i].dense_layer}/{MODEL_NAME}__{max_reward:_>7.2f}max_{average_reward:_>7.2f}avg_{min_reward:_>7.2f}min__{int(time.time())}.model')
+
+            if epsilon > MIN_EPSILON:
+                epsilon *= EPSILON_DECAY
+                epsilon = max(MIN_EPSILON, epsilon)

@@ -12,3 +12,4 @@ slay-bot/
 training_data_v2.npy
 velocity.PNG
 venv/
+logs/
