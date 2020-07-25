@@ -36,7 +36,7 @@ class BlobEnv:
     HIT_PENALTY = 100
     KILL_REWARD = 500
     ITEM_REWARD = 25
-    OBSERVATION_SPACE_VALUES = (22, 4, 1)  # 4
+    OBSERVATION_SPACE_VALUES = (88, 1)  # 4
     ACTION_SPACE_SIZE = 9
     PLAYER_N = 1  # player key in dict
     FOOD_N = 2  # food key in dict
@@ -297,7 +297,7 @@ class BlobEnv:
         #print(observation.shape)
         self.update_player_env()
 
-        return normalized_observation
+        return normalized_observation.flatten()
 
     def angle(self, angle):
         y = math.sin(math.radians(angle)) * 5
@@ -511,15 +511,15 @@ class BlobEnv:
             enemyTargetObservations = None
             normalized_observation = self.getNormalizedObservation()
         # print(new_observation)
-        # print(normalized_observation)
-        # self.render()
+        print(normalized_observation.flatten())
+        self.render()
         if reward == 0:
             reward -= self.MOVE_PENALTY
 
         if self.episode_step >= 200:
             done = True
 
-        return normalized_observation, enemyTargetObservations, reward, done
+        return normalized_observation.flatten(), enemyTargetObservations, reward, done
 
 
 
