@@ -17,7 +17,7 @@ from blobenv import BlobEnv
 import tensorflow as tf
 import os
 
-LOAD_MOVEMENT_MODEL=""
+LOAD_MOVEMENT_MODEL="./models/64x2/2x256__1595705259___24.00max_-170.18avg_-291.50min.model"
 LOAD_FIRING_MODEL=""
 
 DISCOUNT = 0.99
@@ -30,7 +30,7 @@ MIN_REWARD = -200  # For model save
 MEMORY_FRACTION = 0.20
 USE_CONV_NET = False
 HYPERPARAM_DEBUGGING=False
-USE_EPSILON=True
+USE_EPSILON=False
 dense_layers = [0, 1, 2]
 layer_sizes = [32, 64, 128]
 
@@ -44,7 +44,7 @@ MIN_EPSILON = 0.001
 
 #  Stats settings
 AGGREGATE_STATS_EVERY = 50  # episodes
-SHOW_PREVIEW = False
+SHOW_PREVIEW = True
 
 class DQNAgent:
     def __init__(self, layer_size=2, dense_layer=64):
@@ -243,7 +243,7 @@ if __name__ == "__main__":
 
                 if SHOW_PREVIEW:
                     envs[i].render()
-                    time.sleep(.1)
+                    time.sleep(.01)
 
                 agents[i].update_replay_memory((current_state, action, reward, new_state, done), "movement")
                 agents[i].train(done, step, "movement", "movement")
