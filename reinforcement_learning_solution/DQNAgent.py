@@ -1,4 +1,5 @@
-from keras.models import Sequential, load_model
+from keras.models import Sequential
+from tensorflow.keras.models import load_model
 from keras.layers import Dense, Dropout, Conv2D, MaxPooling2D, Activation, Flatten
 from tensorflow.keras.layers import Input
 from keras.callbacks import TensorBoard
@@ -16,7 +17,8 @@ from blobenv import BlobEnv
 import tensorflow as tf
 import os
 
-LOAD_MODEL=""
+LOAD_MOVEMENT_MODEL=""
+LOAD_FIRING_MODEL=""
 
 DISCOUNT = 0.99
 REPLAY_MEMORY_SIZE = 50_000  # How many last steps to keep for model training
@@ -26,8 +28,9 @@ UPDATE_TARGET_EVERY = 5  # Terminal states (end of episodes)
 MODEL_NAME = '2x256'
 MIN_REWARD = -200  # For model save
 MEMORY_FRACTION = 0.20
-USE_CONV_NET = True
+USE_CONV_NET = False
 HYPERPARAM_DEBUGGING=False
+USE_EPSILON=True
 dense_layers = [0, 1, 2]
 layer_sizes = [32, 64, 128]
 
@@ -68,10 +71,10 @@ class DQNAgent:
     def build_branch(self, inputs, numCategories, num_layers, finalAct="linear"):
         model = tf.keras.layers.Dense(self.layer_size, input_dim=envs[0].OBSERVATION_SPACE_VALUES)(inputs)
         for l in range(num_layers):
-            model = tf.keras.layers.Dense(self.layer_size, activation="relu")(model)
+            model = tf.keras.layers.Dense(self.layer_size, activation="tanh")(model)
 
         model = tf.keras.layers.Flatten()(model)
-        model = tf.keras.layers.Dense(self.layer_size, activation="relu")(model)
+        model = tf.keras.layers.Dense(self.layer_size, activation="tanh")(model)
         model = tf.keras.layers.Dense(numCategories, activation=finalAct)(model)
         return model
 
@@ -106,10 +109,10 @@ class DQNAgent:
         return self.build_branch(inputs, 120, self.dense_layer, "linear")
 
     def create_firing_model(self):
-        if LOAD_MODEL != "":
-            print(f"loading {LOAD_MODEL}")
-            model = load_model(LOAD_MODEL)
-            print(f"Model {LOAD_MODEL} is now loaded!")
+        if LOAD_FIRING_MODEL != "":
+            print(f"loading {LOAD_FIRING_MODEL}")
+            model = load_model(LOAD_FIRING_MODEL)
+            print(f"Model {LOAD_FIRING_MODEL} is now loaded!")
         else:
             inputs = Input(shape=envs[0].OBSERVATION_SPACE_VALUES, batch_size=MINIBATCH_SIZE)
             fire_weapon_branch = self.build_fire_weapon_branch(inputs)
@@ -120,10 +123,10 @@ class DQNAgent:
         return model
 
     def create_movement_model(self):
-        if LOAD_MODEL != "":
-            print(f"loading {LOAD_MODEL}")
-            model = load_model(LOAD_MODEL)
-            print(f"Model {LOAD_MODEL} is now loaded!")
+        if LOAD_MOVEMENT_MODEL != "":
+            print(f"loading {LOAD_MOVEMENT_MODEL}")
+            model = load_model(LOAD_MOVEMENT_MODEL)
+            print(f"Model {LOAD_MOVEMENT_MODEL} is now loaded!")
         else:
             if not USE_CONV_NET:
                 inputs = Input(shape=envs[0].OBSERVATION_SPACE_VALUES)
@@ -139,26 +142,26 @@ class DQNAgent:
         self.replay_memory[model].append(transition)
 
     def get_qs(self, state, model):
-        # input_m = np.array(state.reshape(-1, *state.shape)/100)[0]
+        # input_m = np.array(state.reshape(-1, *state.shape))[0]
         # print(f"input into the model: {input_m}")
         # input("waiting for user input to continue")
-        return self.model[model].predict(np.array(state.reshape(-1, *state.shape, 1)/100)[0])
+        return self.model[model].predict(np.array(state.reshape(-1, *state.shape, 1))[0])
 
     def train(self, terminal_state, step, model, replay_memory):
         if len(self.replay_memory[replay_memory]) < MIN_REPLAY_MEMORY_SIZE:
             return
         minibatch = random.sample(self.replay_memory[replay_memory], MINIBATCH_SIZE)
-        current_states = np.array([transition[0] for transition in minibatch])/100
+        current_states = np.array([transition[0] for transition in minibatch])
         if not USE_CONV_NET:
-            current_qs_list = self.model[model].predict(current_states) #crazy model fitting every step
+            current_qs_list = self.model[model].predict(current_states.reshape(64, 22, 4, 1)) #crazy model fitting every step
         else:
-            current_qs_list = self.model[model].predict(current_states.reshape(64, 52, 4, 1))
+            current_qs_list = self.model[model].predict(current_states.reshape(64, 22, 4, 1))
 
-        new_current_states = np.array([transition[3] for transition in minibatch])/100
+        new_current_states = np.array([transition[3] for transition in minibatch])
         if not USE_CONV_NET:
-            future_qs_list = self.target_model[model].predict(new_current_states)
+            future_qs_list = self.target_model[model].predict(new_current_states.reshape(64, 22, 4, 1))
         else:
-            future_qs_list = self.target_model[model].predict(new_current_states.reshape(64, 52, 4, 1))
+            future_qs_list = self.target_model[model].predict(new_current_states.reshape(64, 22, 4, 1))
 
         X = []
         Y = []
@@ -176,7 +179,7 @@ class DQNAgent:
             X.append(current_state)
             Y.append(current_qs)
 
-        self.model[model].fit(np.array(X).reshape(64, 52, 4, 1)/100,np.array(Y), batch_size = MINIBATCH_SIZE, verbose = 0, shuffle=False, callbacks=[self.tensorboard] if terminal_state else None)
+        self.model[model].fit(np.array(X).reshape(64, 22, 4, 1),np.array(Y), batch_size = MINIBATCH_SIZE, verbose = 0, shuffle=False, callbacks=[self.tensorboard] if terminal_state else None)
 
         # updating to determine if we want to update target_model yet
         if terminal_state:
@@ -228,17 +231,19 @@ if __name__ == "__main__":
             done = False
 
             while not done:
-                if np.random.random() > epsilon:
+                if np.random.random() > epsilon or not USE_EPSILON:
                     action = np.argmax(agents[i].get_qs(np.array([current_state]), "movement"))
                 else:
+                    #print("rando action")
                     action = np.random.randint(0, envs[i].ACTION_SPACE_SIZE)
 
                 new_state, target_state, reward, done = envs[i].step(action)
 
                 episode_reward += reward
 
-                if SHOW_PREVIEW and not episode % AGGREGATE_STATS_EVERY:
+                if SHOW_PREVIEW:
                     envs[i].render()
+                    time.sleep(.1)
 
                 agents[i].update_replay_memory((current_state, action, reward, new_state, done), "movement")
                 agents[i].train(done, step, "movement", "movement")
@@ -248,7 +253,7 @@ if __name__ == "__main__":
 
             # Append episode reward to a list and log stats (every given number of episodes)
             ep_rewards[i].append(episode_reward)
-            print(f"episode {episode} finished after {step} steps. final reward: {episode_reward}")
+            print(f"episode {episode} finished after {step-1} steps. final reward: {episode_reward}")
             if not episode % AGGREGATE_STATS_EVERY or episode == 1:
                 #print(f"--------------------------------------\nep rewards[{i}]: {ep_rewards[i]}--------------------------------------\n")
                 average_reward = sum(ep_rewards[i][-AGGREGATE_STATS_EVERY:])/len(ep_rewards[i][-AGGREGATE_STATS_EVERY:])
@@ -258,7 +263,7 @@ if __name__ == "__main__":
 
                 # Save model, but only when min reward is greater or equal a set value
                 if average_reward >= MIN_REWARD:
-                    agents[i].model["movement"].save(f'models/{agents[i].layer_size}x{agents[i].dense_layer}/{MODEL_NAME}__{max_reward:_>7.2f}max_{average_reward:_>7.2f}avg_{min_reward:_>7.2f}min__{int(time.time())}.model')
+                    agents[i].model["movement"].save(f'models/{agents[i].layer_size}x{agents[i].dense_layer}/{MODEL_NAME}__{int(time.time())}_{max_reward:_>7.2f}max_{average_reward:_>7.2f}avg_{min_reward:_>7.2f}min.model')
 
             if epsilon > MIN_EPSILON:
                 epsilon *= EPSILON_DECAY

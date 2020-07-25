@@ -56,6 +56,7 @@ class Player:
         Gives us 9 total movement options. (0,1,2,3,4,5,6,7,8)
         '''
         #blobenv.render_env_image(env)
+        #choice = 8
         if choice == 0:
             self.move(env, x=1, y=1)
         elif choice == 1:

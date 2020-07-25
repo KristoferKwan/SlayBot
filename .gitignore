@@ -6,7 +6,7 @@ __pycache__/
 chromedriver.exe
 checkpoint
 debug.log
-deep_learning_solutionS
+deep_learning_solution/
 slay-bot/
 training_data_v2.npy
 velocity.PNG

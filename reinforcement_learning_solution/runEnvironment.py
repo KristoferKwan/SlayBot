@@ -11,6 +11,7 @@ while i < 20000:
         env.reset()
     action = random.randint(0, 8)
     env.step(action)
-    env.render()
+    #env.render()
     i += 1
+    time.sleep(0.1)
     #input("press enter to continue")

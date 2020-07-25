@@ -20,18 +20,23 @@ def render_env_image(env):
     cv2.waitKey(1)
 
 class BlobEnv:
-    SIZE = 60
+    SIZE = 10
+    PLAYER_WINDOW_SIZE = 10
+    SQUARE_SIZE = 20
     RETURN_IMAGES = False
     HAVE_ENEMY = True
     USE_SPAWNPOINTS = False
-    NUM_ENEMIES = 5
+    USE_DISTANCE_FOR_ITEM_REWARD = False
+    NUM_ENEMIES = 2
+    NUM_ITEMS = 1
     MOVE_PENALTY = 1
     DEATH_PENALTY = 500
-    OBSTACLE_PENALTY = 5
+    MAX_OBSTACLE_PENALTY = 300
+    OBSTACLE_PENALTY = 300
     HIT_PENALTY = 100
     KILL_REWARD = 500
-    ITEM_REWARD = 150
-    OBSERVATION_SPACE_VALUES = (52, 4, 1)  # 4
+    ITEM_REWARD = 25
+    OBSERVATION_SPACE_VALUES = (22, 4, 1)  # 4
     ACTION_SPACE_SIZE = 9
     PLAYER_N = 1  # player key in dict
     FOOD_N = 2  # food key in dict
@@ -86,9 +91,9 @@ class BlobEnv:
 
     def __init__(self):
         self.env = np.zeros((self.SIZE, self.SIZE, 3), dtype=np.uint8)  # starts an rbg of our size
-        self.default_env = self.create_default_env("the_bay")
+        self.default_env = self.create_default_env(map_=None)
         self.player_env = np.zeros((self.SIZE, self.SIZE), dtype=np.uint8)
-        self.collision_env = self.create_default_env("the_bay")
+        self.collision_env = self.create_default_env(map_=None)
         self.player = None
 
     def remove_player(self, player):
@@ -118,8 +123,30 @@ class BlobEnv:
             default_env[obstacle.y][obstacle.x] = self.d[self.OBSTACLE_N]
         return default_env
 
+    def generate_square_map(self, size=None, generate_items=False, num_items=None):
+        if not size:
+            size = self.SIZE
+        if not num_items:
+            num_items = self.NUM_ITEMS
+        midpoint = size // 2
+        upperBound = midpoint + self.SQUARE_SIZE // 2
+        lowerBound = midpoint - self.SQUARE_SIZE // 2
+        for y in range(size):
+            for x in range(size):
+                if x <= upperBound and x >= lowerBound and y <= upperBound and y >= lowerBound:
+                    self.obstacles.append(Obstacle(self.SIZE, x=x, y=y))
+        if generate_items:
+            for item in range(num_items):
+                x = random.randint(0, size - 1)
+                y = random.randint(0, size - 1)
+                while True:
+                    x = random.randint(0, size - 1)
+                    y = random.randint(0, size - 1)
+                    if x > upperBound or x < lowerBound or y > upperBound or y < lowerBound:
+                        self.items.append(Item(self.SIZE, x=x, y=y, weapon=1))
+                        break
 
-    def generate_obstacles(self, map_):
+    def generate_obstacles_preset_map(self, map_):
         map_file = open(f"./maps/{map_.lower().replace(' ', '_')}.pickle", "rb")
         map_info = pickle.load(map_file)
         tiles_file = open("./maps/texture_id_map.pickle", "rb") 
@@ -159,6 +186,31 @@ class BlobEnv:
                     if tile["x"] >= 0 and tile["x"] < self.SIZE and tile["y"] >= 0 and tile["y"] < self.SIZE:
                         self.obstacles.append(Obstacle(self.SIZE, x=tile["x"], y=tile["y"]))
 
+    def generate_empty_map(self, size=None, generate_items=False, num_items=None):
+        items = set()
+        if not size:
+            size = self.SIZE
+        if not num_items:
+            num_items = self.NUM_ITEMS
+        if generate_items:
+            for item in range(num_items):
+                x = random.randint(0, size - 1)
+                y = random.randint(0, size - 1)
+                while True:
+                    x = random.randint(0, size - 1)
+                    y = random.randint(0, size - 1)
+                    if (x, y) not in items:
+                        self.items.append(Item(self.SIZE, x=x, y=y, weapon=1))
+                        items.add((x, y))
+                        break
+
+    def generate_obstacles(self, map_=None, size=None, generate_items=False, num_items=None):
+        if map_ == "square":
+            self.generate_square_map(size=size, generate_items=generate_items)
+        elif map_:
+            self.generate_obstacles_preset_map(map_)
+        else:
+            self.generate_empty_map(size=size, generate_items=generate_items)
 
     def add_player(self, player):
         self.player_dict[player.id] = player
@@ -183,15 +235,18 @@ class BlobEnv:
                curr_position != self.d[self.HEALINGITEM_N] and \
                curr_position != self.d[self.WEAPON_N]
 
-    def get_random_spawnpoint(self):
-        x = random.randint(0, 40)
-        y = random.randint(0, 40)
+    def get_random_spawnpoint(self, upperBound=None):
+        if not upperBound:
+            upperBound = self.SIZE
+        x = random.randint(0, upperBound-1)
+        y = random.randint(0, upperBound-1)
         while not self.valid_tile(self.collision_env, x, y):
-            x = random.randint(0, 40)
-            y = random.randint(0, 40)
+            x = random.randint(0, upperBound-1)
+            y = random.randint(0, upperBound-1)
         return {"x": x, "y": y}
 
     def reset(self):
+        self.OBSTACLE_PENALTY = self.MAX_OBSTACLE_PENALTY
         self.obstacles = list()
         self.items = list()
         self.spawn_points = list()
@@ -202,7 +257,7 @@ class BlobEnv:
         self.available_projectile_slots = [0] * 20
         self.playerid_observation_slot = dict()  # playerID: index in env
         self.projectileid_observation_slot = dict()  # index in env: projectileID
-        self.generate_obstacles("the_bay")
+        self.generate_obstacles(map_=None, generate_items=True)
         if self.USE_SPAWNPOINTS:
             spawning_point = random.choice(self.spawn_points)
         else:
@@ -237,17 +292,12 @@ class BlobEnv:
         if self.RETURN_IMAGES:
             observation = np.array(self.get_image())
         else:
-            enemyObservations = self.getEnemyObservations()
-            itemObservations = self.getItemsObservations()
-            projectileObservations = self.getProjectileObservations()
-            obstacleObservations = self.getObstacleObservations()
-            observation = np.array(
-                enemyObservations + itemObservations + projectileObservations + [obstacleObservations[:4]] + [
-                    obstacleObservations[4:]])
+            observation = self.getObstacleObservations()
+            normalized_observation = self.getNormalizedObservation()
         #print(observation.shape)
         self.update_player_env()
 
-        return observation
+        return normalized_observation
 
     def angle(self, angle):
         y = math.sin(math.radians(angle)) * 5
@@ -258,7 +308,12 @@ class BlobEnv:
         if changex != 0:
             angle = abs(math.degrees(math.atan(changey/changex)))
         else:
-            angle = 90
+            if changey > 0:
+                angle = 90
+            elif changey < 0:
+                angle = 270
+            else:
+                angle = 0
         if changex > 0 and changey > 0:
             angle = angle
         elif changex < 0 and changey <= 0:
@@ -269,13 +324,11 @@ class BlobEnv:
             angle = 360 - angle
         return angle
 
+    def getDistanceFromPlayer(self, x, y):
+        return math.sqrt((self.player.x - x)**2 + (self.player.y - y)**2)
 
-
-    def getEnemyObservations(self, max_enemies=10, angle=False):
-        if angle:
-            enemies = [[0, 0, 0, 0, 0]] * max_enemies
-        else:
-            enemies = [[0, 0, 0, 0]] * max_enemies
+    def getEnemyObservations(self, max_enemies=10, angle=True):
+        enemies = [[0, 0, 0, 0]] * max_enemies
         for playerid in self.player_dict:
             if playerid != self.player.id:
                 enemy = self.player_dict[playerid]
@@ -294,15 +347,18 @@ class BlobEnv:
                     else:
                         will_collide = 0
                     if angle:
-                        enemies[self.playerid_observation_slot[playerid]] = [changex, changey, enemy.health, self.determine_angle(changex, changey), will_collide]
-                    if not angle:
+                        enemy_distance = self.getDistanceFromPlayer(enemy.x, enemy.y)
+                        enemies[self.playerid_observation_slot[playerid]] = [self.determine_angle(changex, changey), enemy_distance, enemy.health, 1]
+                    else:
                         enemies[self.playerid_observation_slot[playerid]] = [changex, changey, enemy.health, 1]
         return enemies
 
     def getItemsObservations(self, max_items=20):
         items = [[0, 0, 0, 0]] * max_items
         for i in range(len(self.items)):
-            items[i] = [self.items[i].x - self.player.x, self.items[i].y - self.player.y, self.items[i].available, 2]
+            angle = self.determine_angle(self.items[i].x - self.player.x, self.items[i].y - self.player.y)
+            distance = self.getDistanceFromPlayer(self.items[i].x, self.items[i].y)
+            items[i] = [angle, distance, self.items[i].available, 2]
         return items
 
     def getProjectileObservations(self, max_projectiles=20):
@@ -315,26 +371,81 @@ class BlobEnv:
                     if projectile_index != -1:
                         self.available_projectile_slots[projectile_index] = projectileid
                         self.projectileid_observation_slot[projectileid] = projectile_index
-                projectiles[self.projectileid_observation_slot[projectileid]] = [projectile.x - self.player.x, projectile.y - self.player.y, 0, 3]
+                angle = self.determine_angle(projectile.x - self.player.x, projectile.y - self.player.y)
+                distance = self.getDistanceFromPlayer(projectile.x, projectile.y)
+                projectiles[self.projectileid_observation_slot[projectileid]] = [angle, distance, 0, 3]
         return projectiles
 
     def getObstacleObservations(self):
-        obstacles = [11] * 8
+        obstacles = [0] * 8
         possible_ranges = [[1,0], [1,1], [0,1], [-1,1], [-1,0], [-1,-1], [0,-1], [1,-1]]
-        for i in range(1, 11):
+        for i in range(1):
             for j in range(len(possible_ranges)):
                 x_mult = possible_ranges[j][0]
                 y_mult = possible_ranges[j][1]
-                check_x = self.player.x + i*x_mult
-                check_y = self.player.y + i*y_mult
-                if check_x >= self.SIZE or check_y >= self.SIZE or check_x < 0 or check_y < 0 or self.default_env[check_y][check_x].tolist() == self.d[self.OBSTACLE_N]:
-                    obstacles[j] = min(obstacles[j],i)
+                check_x = self.player.x + (i+1)*x_mult
+                check_y = self.player.y + (i+1)*y_mult
+                if check_x >= self.SIZE or check_y >= self.SIZE or check_x < 0 or check_y < 0 or self.collision_env[check_y][check_x].tolist() == self.d[self.OBSTACLE_N] or self.collision_env[check_y][check_x].tolist() == self.d[self.ENEMY_N]:
+                    obstacles[j] = max(obstacles[j],i+1)
 
         return obstacles
 
+    def normalizeObservationState(self, observationCategory, observation):
+        normalized_observation = []
+        if observationCategory == "enemy":
+            for enemy in observation:
+                normalized_observation.append([enemy[0]/360, enemy[1]/self.PLAYER_WINDOW_SIZE, enemy[2]/110, 0])
+        elif observationCategory == "item":
+            for item in observation:
+                normalized_observation.append([item[0]/360, item[1]/self.PLAYER_WINDOW_SIZE, item[2], 0])
+        elif observationCategory == "projectile":
+            for projectile in observation:
+                normalized_observation.append([projectile[0]/360, projectile[1]/self.PLAYER_WINDOW_SIZE, 0, 0])
+        elif observationCategory == "obstacle":
+            return observation #obstacle is binary.. its already normalized
+        return normalized_observation
+
+    def getNormalizedObservation(self):
+        enemies = self.normalizeObservationState("enemy", self.getEnemyObservations(5))
+        items = self.normalizeObservationState("item", self.getItemsObservations(5))
+        projectiles = self.normalizeObservationState("projectile", self.getProjectileObservations(10))
+        obstacles = self.normalizeObservationState("obstacle", self.getObstacleObservations())
+        return np.array(enemies + items + projectiles + [obstacles[:4]] + [obstacles[4:]])
+
+    def getObservation(self):
+        enemies = self.getEnemyObservations(5)
+        items = self.getItemsObservations(5)
+        projectiles = self.getProjectileObservations(10)
+        obstacles = self.getObstacleObservations()
+        return np.array(enemies + items + projectiles + [obstacles[:4]] + [obstacles[4:]])
+
+    def calculateRewardItem(self, item):
+        distance = round(math.sqrt((self.player.x - item.x)**2 + (self.player.y - item.y)**2))
+        if self.USE_DISTANCE_FOR_ITEM_REWARD:
+            if distance <= 5:
+                if distance == 0:
+                    reward = self.ITEM_REWARD
+                elif distance == 1:
+                    reward = 10
+                elif distance == 2:
+                    reward = 6
+                elif distance == 3:
+                    reward = 3
+                elif distance == 4:
+                    reward = 2
+                elif distance == 5:
+                    reward = 1
+        elif distance == 0:
+            reward = self.ITEM_REWARD
+        else:
+            reward = 0
+        return reward
+
     def step(self, action):
         self.episode_step += 1
+        self.OBSTACLE_PENALTY = max(self.OBSTACLE_PENALTY - self.MAX_OBSTACLE_PENALTY/200, 0)
         reward = 0
+        done = False
         # x = random.randint(0, self.SIZE - 1)
         # y = random.randint(0, self.SIZE - 1)
         # while y == self.player.y:
@@ -345,7 +456,8 @@ class BlobEnv:
         self.player.action(action, False, self.projectiles, self.collision_env, None)
         if self.player.hit_wall == 1:
             reward -= self.OBSTACLE_PENALTY
-            # print(f"hit an obstacle. Minus {self.OBSTACLE_PENALTY}")
+            done = True
+            # print(f"hit an obstacle on step {self.episode_step}. x:{self.player.x} y:{self.player.y}. Minus {self.OBSTACLE_PENALTY}")
         # if self.HAVE_ENEMY: ## for player movement in the future
         #     self.enemy.move(self.env)
 
@@ -353,12 +465,18 @@ class BlobEnv:
         # enemy.move()
         # food.move()
         ##############
-
+        items_left = 0
         for item in self.items:
-            if item.available and self.player.x == item.x and self.player.y == item.y:
-                reward += self.ITEM_REWARD
-                item.available = 0
-                # print(f"got an item. Plus {self.ITEM_REWARD} points")
+            if item.available:
+                itemreward = self.calculateRewardItem(item)
+                reward += itemreward
+                if self.player.x == item.x and self.player.y == item.y:
+                    item.available = 0
+                    # print(f"got an item. Plus {itemreward} points")
+            else:
+                items_left += 1
+        if items_left == len(self.items):
+            done = True
 
         collision_env = copy.copy(self.default_env)
         for player in self.players:
@@ -389,26 +507,31 @@ class BlobEnv:
             new_observation = np.array(self.get_image())
             enemyTargetObservations = None
         else:
-            enemyObservations = self.getEnemyObservations()
-            itemObservations = self.getItemsObservations()
-            projectileObservations = self.getProjectileObservations()
-            obstacleObservations = self.getObstacleObservations()
-            enemyTargetObservations = self.getEnemyObservations(angle=True)
-            new_observation = np.array(enemyObservations + itemObservations + projectileObservations + [obstacleObservations[:4]] + [obstacleObservations[4:]])
-        #print(new_observation)
-        reward -= self.MOVE_PENALTY
+            new_observation = self.getObservation()
+            enemyTargetObservations = None
+            normalized_observation = self.getNormalizedObservation()
+        # print(new_observation)
+        # print(normalized_observation)
+        # self.render()
+        if reward == 0:
+            reward -= self.MOVE_PENALTY
 
-        done = False
         if self.episode_step >= 200:
             done = True
 
-        return new_observation, enemyTargetObservations, reward, done
+        return normalized_observation, enemyTargetObservations, reward, done
+
 
 
     def render(self):        
         img = self.get_image()
-        img = img.resize((300, 300), resample=Image.BOX)  # resizing so we can see our agent in all its glory.
-        cv2.imshow("image", np.array(img))  # show it!
+        SIZE = 600
+        img = np.array(img.resize((SIZE, SIZE), resample=Image.BOX))  # resizing so we can see our agent in all its glory.
+        for x in range(0, SIZE - 1, SIZE//self.SIZE):
+            cv2.line(img, (x, 0), (x, SIZE), (255, 255, 255), 1, 1)
+        for y in range(0, SIZE -1, SIZE//self.SIZE):
+            cv2.line(img, (0, y), (SIZE, y), (255, 255, 255), 1, 1)
+        cv2.imshow("image", img)  # show it!
         cv2.waitKey(1)
 
     def update_projectiles(self):
