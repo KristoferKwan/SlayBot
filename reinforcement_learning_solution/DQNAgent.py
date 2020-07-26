@@ -29,6 +29,7 @@ MODEL_NAME = '2x256'
 MIN_REWARD = -200  # For model save
 MEMORY_FRACTION = 0.20
 USE_CONV_NET = False
+OBSERVATION_SPACE_VALUES = (88, 1)
 HYPERPARAM_DEBUGGING=False
 USE_EPSILON=True
 dense_layers = [0, 1, 2]
@@ -153,15 +154,15 @@ class DQNAgent:
         minibatch = random.sample(self.replay_memory[replay_memory], MINIBATCH_SIZE)
         current_states = np.array([transition[0] for transition in minibatch])
         if not USE_CONV_NET:
-            current_qs_list = self.model[model].predict(current_states.reshape(64, 22, 4, 1)) #crazy model fitting every step
+            current_qs_list = self.model[model].predict(current_states.reshape(64, *OBSERVATION_SPACE_VALUES)) #crazy model fitting every step
         else:
-            current_qs_list = self.model[model].predict(current_states.reshape(64, 22, 4, 1))
+            current_qs_list = self.model[model].predict(current_states.reshape(64, *OBSERVATION_SPACE_VALUES))
 
         new_current_states = np.array([transition[3] for transition in minibatch])
         if not USE_CONV_NET:
-            future_qs_list = self.target_model[model].predict(new_current_states.reshape(64, 22, 4, 1))
+            future_qs_list = self.target_model[model].predict(new_current_states.reshape(64, *OBSERVATION_SPACE_VALUES))
         else:
-            future_qs_list = self.target_model[model].predict(new_current_states.reshape(64, 22, 4, 1))
+            future_qs_list = self.target_model[model].predict(new_current_states.reshape(64, *OBSERVATION_SPACE_VALUES))
 
         X = []
         Y = []
@@ -179,7 +180,7 @@ class DQNAgent:
             X.append(current_state)
             Y.append(current_qs)
 
-        self.model[model].fit(np.array(X).reshape(64, 22, 4, 1),np.array(Y), batch_size = MINIBATCH_SIZE, verbose = 0, shuffle=False, callbacks=[self.tensorboard] if terminal_state else None)
+        self.model[model].fit(np.array(X).reshape(64, *OBSERVATION_SPACE_VALUES),np.array(Y), batch_size = MINIBATCH_SIZE, verbose = 0, shuffle=False, callbacks=[self.tensorboard] if terminal_state else None)
 
         # updating to determine if we want to update target_model yet
         if terminal_state:
