@@ -36,7 +36,7 @@ class BlobEnv:
     HIT_PENALTY = 100
     KILL_REWARD = 500
     ITEM_REWARD = 25
-    OBSERVATION_SPACE_VALUES = (22, 4, 1)  # 4
+    OBSERVATION_SPACE_VALUES = (88, 1)  # 4
     ACTION_SPACE_SIZE = 9
     PLAYER_N = 1  # player key in dict
     FOOD_N = 2  # food key in dict
@@ -62,7 +62,7 @@ class BlobEnv:
             8: [255, 128, 0],
             9: [255, 102, 255]
         }
-    
+
     item_id = {
         1000: "medkit",
         1001: "armor",
@@ -76,7 +76,7 @@ class BlobEnv:
         8: "sniper",
         9: "shotgun",
         11: "rapidgrenade"
-    } 
+    }
 
     obstacles = list()
     items = list()
@@ -149,11 +149,11 @@ class BlobEnv:
     def generate_obstacles_preset_map(self, map_):
         map_file = open(f"./maps/{map_.lower().replace(' ', '_')}.pickle", "rb")
         map_info = pickle.load(map_file)
-        tiles_file = open("./maps/texture_id_map.pickle", "rb") 
+        tiles_file = open("./maps/texture_id_map.pickle", "rb")
         tiles_info = pickle.load(tiles_file)
-        
-        nontiles_file = open("./maps/nontile_id_map.pickle", "rb") 
-        nontiles_info = pickle.load(nontiles_file)   
+
+        nontiles_file = open("./maps/nontile_id_map.pickle", "rb")
+        nontiles_info = pickle.load(nontiles_file)
 
         #print(tiles_info)
         items = map_info["ammo"]
@@ -165,7 +165,7 @@ class BlobEnv:
 
         for item in items:
             self.items.append(Item(self.SIZE, x=item["x"], y=item["y"], weapon=item["weapon"]))
-            
+
 
         for tile in tiles:
             if tiles_info[tile["id"]].lower().find("water") != -1:
@@ -182,7 +182,7 @@ class BlobEnv:
                             temp_y = tile["y"] + j
                             if temp_x >= 0 and temp_x < self.SIZE and temp_y >= 0 and temp_y < self.SIZE:
                                 self.obstacles.append(Obstacle(self.SIZE, x=temp_x, y=temp_y))
-                else:     
+                else:
                     if tile["x"] >= 0 and tile["x"] < self.SIZE and tile["y"] >= 0 and tile["y"] < self.SIZE:
                         self.obstacles.append(Obstacle(self.SIZE, x=tile["x"], y=tile["y"]))
 
@@ -297,7 +297,7 @@ class BlobEnv:
         #print(observation.shape)
         self.update_player_env()
 
-        return normalized_observation
+        return normalized_observation.flatten()
 
     def angle(self, angle):
         y = math.sin(math.radians(angle)) * 5
@@ -511,7 +511,7 @@ class BlobEnv:
             enemyTargetObservations = None
             normalized_observation = self.getNormalizedObservation()
         # print(new_observation)
-        # print(normalized_observation)
+        # print(normalized_observation.flatten())
         # self.render()
         if reward == 0:
             reward -= self.MOVE_PENALTY
@@ -519,11 +519,11 @@ class BlobEnv:
         if self.episode_step >= 200:
             done = True
 
-        return normalized_observation, enemyTargetObservations, reward, done
+        return normalized_observation.flatten(), enemyTargetObservations, reward, done
 
 
 
-    def render(self):        
+    def render(self):
         img = self.get_image()
         SIZE = 600
         img = np.array(img.resize((SIZE, SIZE), resample=Image.BOX))  # resizing so we can see our agent in all its glory.
@@ -574,4 +574,3 @@ class BlobEnv:
 
 
 #None of the code above for this class should have you lost or confused, as long as you've been following along. We can then initialize our environment with:
-
