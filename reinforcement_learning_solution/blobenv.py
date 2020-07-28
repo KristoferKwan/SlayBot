@@ -20,15 +20,16 @@ def render_env_image(env):
     cv2.waitKey(1)
 
 class BlobEnv:
-    SIZE = 10
-    PLAYER_WINDOW_SIZE = 10
+    SIZE = 20
+    OBSTACLE_COLLISION = False
+    PLAYER_WINDOW_SIZE = 20
     SQUARE_SIZE = 20
     RETURN_IMAGES = False
     HAVE_ENEMY = True
     USE_SPAWNPOINTS = False
     USE_DISTANCE_FOR_ITEM_REWARD = False
     NUM_ENEMIES = 2
-    NUM_ITEMS = 1
+    NUM_ITEMS = 3
     MOVE_PENALTY = 1
     DEATH_PENALTY = 500
     MAX_OBSTACLE_PENALTY = 300
@@ -37,7 +38,7 @@ class BlobEnv:
     KILL_REWARD = 500
     ITEM_REWARD = 25
     OBSERVATION_SPACE_VALUES = (88, 1)  # 4
-    ACTION_SPACE_SIZE = 9
+    ACTION_SPACE_SIZE = 8
     PLAYER_N = 1  # player key in dict
     FOOD_N = 2  # food key in dict
     ENEMY_N = 3  # enemy key in dict
@@ -90,7 +91,7 @@ class BlobEnv:
     projectileid_observation_slot = dict() # index in env: projectileID
 
     def __init__(self):
-        self.env = np.zeros((self.SIZE, self.SIZE, 3), dtype=np.uint8)  # starts an rbg of our size
+        self.env = self.create_default_env(map_=None) # starts an rbg of our size
         self.default_env = self.create_default_env(map_=None)
         self.player_env = np.zeros((self.SIZE, self.SIZE), dtype=np.uint8)
         self.collision_env = self.create_default_env(map_=None)
@@ -116,11 +117,13 @@ class BlobEnv:
         self.players = new_players_list
         self.player_dict = new_players_dict
 
-    def create_default_env(self, map_):
-        self.generate_obstacles(map_)
+    def create_default_env(self, map_, size=None, generate_items=False, num_items=None):
+        self.generate_obstacles(map_, size=size, generate_items=generate_items, num_items=num_items)
         default_env = np.zeros((self.SIZE, self.SIZE, 3), dtype=np.uint8)
         for obstacle in self.obstacles:
             default_env[obstacle.y][obstacle.x] = self.d[self.OBSTACLE_N]
+        for item in self.items:
+            default_env[item.y][item.x] = self.d[self.WEAPON_N]
         return default_env
 
     def generate_square_map(self, size=None, generate_items=False, num_items=None):
@@ -137,8 +140,6 @@ class BlobEnv:
                     self.obstacles.append(Obstacle(self.SIZE, x=x, y=y))
         if generate_items:
             for item in range(num_items):
-                x = random.randint(0, size - 1)
-                y = random.randint(0, size - 1)
                 while True:
                     x = random.randint(0, size - 1)
                     y = random.randint(0, size - 1)
@@ -194,8 +195,6 @@ class BlobEnv:
             num_items = self.NUM_ITEMS
         if generate_items:
             for item in range(num_items):
-                x = random.randint(0, size - 1)
-                y = random.randint(0, size - 1)
                 while True:
                     x = random.randint(0, size - 1)
                     y = random.randint(0, size - 1)
@@ -203,6 +202,7 @@ class BlobEnv:
                         self.items.append(Item(self.SIZE, x=x, y=y, weapon=1))
                         items.add((x, y))
                         break
+
 
     def generate_obstacles(self, map_=None, size=None, generate_items=False, num_items=None):
         if map_ == "square":
@@ -215,6 +215,7 @@ class BlobEnv:
     def add_player(self, player):
         self.player_dict[player.id] = player
         self.players.append(player)
+        self.env[player.y][player.x] = self.d[self.ENEMY_N]
 
     def get_available_slot(self, category):
         if category == "player":
@@ -240,7 +241,7 @@ class BlobEnv:
             upperBound = self.SIZE
         x = random.randint(0, upperBound-1)
         y = random.randint(0, upperBound-1)
-        while not self.valid_tile(self.collision_env, x, y):
+        while not self.valid_tile(self.env, x, y):
             x = random.randint(0, upperBound-1)
             y = random.randint(0, upperBound-1)
         return {"x": x, "y": y}
@@ -257,7 +258,7 @@ class BlobEnv:
         self.available_projectile_slots = [0] * 20
         self.playerid_observation_slot = dict()  # playerID: index in env
         self.projectileid_observation_slot = dict()  # index in env: projectileID
-        self.generate_obstacles(map_=None, generate_items=True)
+        self.env = self.create_default_env(map_=None, generate_items=True)
         if self.USE_SPAWNPOINTS:
             spawning_point = random.choice(self.spawn_points)
         else:
@@ -454,7 +455,7 @@ class BlobEnv:
         self.update_projectiles()
         #self.player.action(action, False, self.projectiles, self.collision_env, [self.player.x + aim[0], self.player.y + aim[1]])
         self.player.action(action, False, self.projectiles, self.collision_env, None)
-        if self.player.hit_wall == 1:
+        if self.OBSTACLE_COLLISION and self.player.hit_wall == 1:
             reward -= self.OBSTACLE_PENALTY
             done = True
             # print(f"hit an obstacle on step {self.episode_step}. x:{self.player.x} y:{self.player.y}. Minus {self.OBSTACLE_PENALTY}")
@@ -512,7 +513,7 @@ class BlobEnv:
             normalized_observation = self.getNormalizedObservation()
         # print(new_observation)
         # print(normalized_observation.flatten())
-        # self.render()
+        self.render()
         if reward == 0:
             reward -= self.MOVE_PENALTY
 

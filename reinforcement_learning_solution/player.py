@@ -75,10 +75,6 @@ class Player:
             self.move(env, x=0, y=1)
         elif choice == 7:
             self.move(env, x=0, y=-1)
-
-        elif choice == 8:
-            self.move(env, x=0, y=0)
-
         # if fireweapon and self.reload_time <= 0:
         #     projectile = Projectile(self.x, self.y, fireweapon[0], fireweapon[1], 25, self.id)
         #     projectiles[projectile.id] = projectile
