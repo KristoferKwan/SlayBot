@@ -17,16 +17,16 @@ from blobenv import BlobEnv
 import tensorflow as tf
 import os
 
-LOAD_MOVEMENT_MODEL="./models/64x2/2x256__1595705259___24.00max_-170.18avg_-291.50min.model"
+LOAD_MOVEMENT_MODEL="./models/officialv1.0.1/2x256__1595902521___24.00max___20.80avg___17.00min.model"
 LOAD_FIRING_MODEL=""
 
 DISCOUNT = 0.99
-REPLAY_MEMORY_SIZE = 50_000  # How many last steps to keep for model training
+REPLAY_MEMORY_SIZE = 30_000  # How many last steps to keep for model training
 MIN_REPLAY_MEMORY_SIZE = 1_000  # Minimum number of steps in a memory to start training
 MINIBATCH_SIZE = 64  # How many steps (samples) to use for training
 UPDATE_TARGET_EVERY = 5  # Terminal states (end of episodes)
 MODEL_NAME = '2x256'
-MIN_REWARD = -200  # For model save
+MIN_REWARD_TO_SAVE = 10  # For model save
 MEMORY_FRACTION = 0.20
 USE_CONV_NET = False
 OBSERVATION_SPACE_VALUES = (88, 1)
@@ -39,7 +39,7 @@ layer_sizes = [32, 64, 128]
 EPISODES = 20000
 
 # Exploration settings
-epsilon = 1  # not a constant, going to be decayed
+epsilon = .5  # not a constant, going to be decayed
 EPSILON_DECAY = 0.99975
 MIN_EPSILON = 0.001
 
@@ -101,7 +101,7 @@ class DQNAgent:
 
 
     def build_movement_branch(self, inputs):
-        return self.build_branch(inputs, 9, self.dense_layer, "linear")
+        return self.build_branch(inputs, 8, self.dense_layer, "linear")
 
     def build_fire_weapon_branch(self, inputs):
         return self.build_branch(inputs, 2, self.dense_layer, "linear")
@@ -244,7 +244,7 @@ if __name__ == "__main__":
 
                 if SHOW_PREVIEW:
                     envs[i].render()
-                    time.sleep(.01)
+                    time.sleep(.1)
 
                 agents[i].update_replay_memory((current_state, action, reward, new_state, done), "movement")
                 agents[i].train(done, step, "movement", "movement")
@@ -263,9 +263,12 @@ if __name__ == "__main__":
                 agents[i].tensorboard.update_stats(reward_avg=average_reward, reward_min=min_reward, reward_max=max_reward, epsilon=epsilon)
 
                 # Save model, but only when min reward is greater or equal a set value
-                if average_reward >= MIN_REWARD:
-                    agents[i].model["movement"].save(f'models/{agents[i].layer_size}x{agents[i].dense_layer}/{MODEL_NAME}__{int(time.time())}_{max_reward:_>7.2f}max_{average_reward:_>7.2f}avg_{min_reward:_>7.2f}min.model')
-
+                if average_reward >= MIN_REWARD_TO_SAVE:
+                    if HYPERPARAM_DEBUGGING:
+                        agents[i].model["movement"].save(f'models/{agents[i].layer_size}x{agents[i].dense_layer}/{MODEL_NAME}__{int(time.time())}_{max_reward:_>7.2f}max_{average_reward:_>7.2f}avg_{min_reward:_>7.2f}min.model')
+                    else:
+                        agents[i].model["movement"].save(
+                            f'models/officialv1.0.1/{MODEL_NAME}__{int(time.time())}_{max_reward:_>7.2f}max_{average_reward:_>7.2f}avg_{min_reward:_>7.2f}min.model')
             if epsilon > MIN_EPSILON:
                 epsilon *= EPSILON_DECAY
                 epsilon = max(MIN_EPSILON, epsilon)
