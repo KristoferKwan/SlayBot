@@ -17,7 +17,8 @@ from blobenv import BlobEnv
 import tensorflow as tf
 import os
 
-LOAD_MOVEMENT_MODEL="./models/officialv1.0.1/2x256__1595902521___24.00max___20.80avg___17.00min.model"
+#LOAD_MOVEMENT_MODEL="./models/officialv1.2.0/2x256__1596064159__107.00max___45.44avg_-174.00min.model"
+LOAD_MOVEMENT_MODEL="./models/officialv1.2.0/2x256__1596155405__112.00max___91.46avg___71.00min.model"
 LOAD_FIRING_MODEL=""
 
 DISCOUNT = 0.99
@@ -26,7 +27,7 @@ MIN_REPLAY_MEMORY_SIZE = 1_000  # Minimum number of steps in a memory to start t
 MINIBATCH_SIZE = 64  # How many steps (samples) to use for training
 UPDATE_TARGET_EVERY = 5  # Terminal states (end of episodes)
 MODEL_NAME = '2x256'
-MIN_REWARD_TO_SAVE = 10  # For model save
+MIN_REWARD_TO_SAVE = 85  # For model save
 MEMORY_FRACTION = 0.20
 USE_CONV_NET = False
 OBSERVATION_SPACE_VALUES = (88, 1)
@@ -39,13 +40,13 @@ layer_sizes = [32, 64, 128]
 EPISODES = 20000
 
 # Exploration settings
-epsilon = .5  # not a constant, going to be decayed
+epsilon = .3  # not a constant, going to be decayed
 EPSILON_DECAY = 0.99975
 MIN_EPSILON = 0.001
 
 #  Stats settings
 AGGREGATE_STATS_EVERY = 50  # episodes
-SHOW_PREVIEW = True
+SHOW_PREVIEW = False
 
 class DQNAgent:
     def __init__(self, layer_size=2, dense_layer=64):
@@ -68,6 +69,7 @@ class DQNAgent:
         self.tensorboard = ModifiedTensorBoard(log_dir=f"logs/{MODEL_NAME}-{layer_size}_layers-{dense_layer}_neurons-{int(time.time())}")
 
         self.target_update_counter = {"movement": 0, "firing": 0}
+
 
     def build_branch(self, inputs, numCategories, num_layers, finalAct="linear"):
         model = tf.keras.layers.Dense(self.layer_size, input_dim=envs[0].OBSERVATION_SPACE_VALUES)(inputs)
@@ -268,7 +270,7 @@ if __name__ == "__main__":
                         agents[i].model["movement"].save(f'models/{agents[i].layer_size}x{agents[i].dense_layer}/{MODEL_NAME}__{int(time.time())}_{max_reward:_>7.2f}max_{average_reward:_>7.2f}avg_{min_reward:_>7.2f}min.model')
                     else:
                         agents[i].model["movement"].save(
-                            f'models/officialv1.0.1/{MODEL_NAME}__{int(time.time())}_{max_reward:_>7.2f}max_{average_reward:_>7.2f}avg_{min_reward:_>7.2f}min.model')
+                            f'models/officialv1.2.1/{MODEL_NAME}__{int(time.time())}_{max_reward:_>7.2f}max_{average_reward:_>7.2f}avg_{min_reward:_>7.2f}min.model')
             if epsilon > MIN_EPSILON:
                 epsilon *= EPSILON_DECAY
                 epsilon = max(MIN_EPSILON, epsilon)

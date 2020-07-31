@@ -13,5 +13,5 @@ while i < 20000:
     env.step(action)
     env.render()
     i += 1
-    time.sleep(0.1)
+    #time.sleep(0.1)
     #input("press enter to continue")

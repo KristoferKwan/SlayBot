@@ -29,7 +29,7 @@ class BlobEnv:
     USE_SPAWNPOINTS = False
     USE_DISTANCE_FOR_ITEM_REWARD = False
     NUM_ENEMIES = 2
-    NUM_ITEMS = 3
+    NUM_ITEMS = 5
     MOVE_PENALTY = 1
     DEATH_PENALTY = 500
     MAX_OBSTACLE_PENALTY = 300
@@ -96,6 +96,9 @@ class BlobEnv:
         self.player_env = np.zeros((self.SIZE, self.SIZE), dtype=np.uint8)
         self.collision_env = self.create_default_env(map_=None)
         self.player = None
+        self.queued_items_dict = dict()
+        self.queued_items_list = list()
+        self.player_steps = list()
 
     def remove_player(self, player):
         player_index = self.playerid_observation_slot[player.id]
@@ -144,7 +147,7 @@ class BlobEnv:
                     x = random.randint(0, size - 1)
                     y = random.randint(0, size - 1)
                     if x > upperBound or x < lowerBound or y > upperBound or y < lowerBound:
-                        self.items.append(Item(self.SIZE, x=x, y=y, weapon=1))
+                        self.items.append(Item(item, self.SIZE, x=x, y=y, weapon=1))
                         break
 
     def generate_obstacles_preset_map(self, map_):
@@ -164,8 +167,8 @@ class BlobEnv:
         self.items = list()
         self.obstacles = list()
 
-        for item in items:
-            self.items.append(Item(self.SIZE, x=item["x"], y=item["y"], weapon=item["weapon"]))
+        for i in range(len(items)):
+            self.items.append(Item(i, self.SIZE, x=items[i]["x"], y=items[i]["y"], weapon=items[i]["weapon"]))
 
 
         for tile in tiles:
@@ -199,7 +202,7 @@ class BlobEnv:
                     x = random.randint(0, size - 1)
                     y = random.randint(0, size - 1)
                     if (x, y) not in items:
-                        self.items.append(Item(self.SIZE, x=x, y=y, weapon=1))
+                        self.items.append(Item(item, self.SIZE, x=x, y=y, weapon=1))
                         items.add((x, y))
                         break
 
@@ -259,12 +262,18 @@ class BlobEnv:
         self.playerid_observation_slot = dict()  # playerID: index in env
         self.projectileid_observation_slot = dict()  # index in env: projectileID
         self.env = self.create_default_env(map_=None, generate_items=True)
+        self.queued_items_dict = dict()
+        self.queued_items_list = list()
+        self.player_steps = list()
         if self.USE_SPAWNPOINTS:
             spawning_point = random.choice(self.spawn_points)
         else:
             spawning_point = self.get_random_spawnpoint()
+            # self.collision_env[0][0] = self.d[self.PLAYER_N]
             self.collision_env[spawning_point["y"]][spawning_point["x"]] = self.d[self.PLAYER_N]
         self.player = Player(self.SIZE, spawning_point, 107, ID=1)
+        self.player_steps.append((spawning_point["x"], spawning_point["y"]))
+        # self.player = Player(self.SIZE, {"x": 0, "y": 0}, 107, ID=1)
         self.add_player(self.player)
 
         locations = set()
@@ -356,10 +365,36 @@ class BlobEnv:
 
     def getItemsObservations(self, max_items=20):
         items = [[0, 0, 0, 0]] * max_items
+        item_index = len(self.queued_items_list)
+        temp_item_list = list() # will be a list of lists -- goal is to sort the items by index and also to omit items that are already on the queue
+
         for i in range(len(self.items)):
-            angle = self.determine_angle(self.items[i].x - self.player.x, self.items[i].y - self.player.y)
-            distance = self.getDistanceFromPlayer(self.items[i].x, self.items[i].y)
-            items[i] = [angle, distance, self.items[i].available, 2]
+            if self.items[i].id not in self.queued_items_dict:
+                distance = self.getDistanceFromPlayer(self.items[i].x, self.items[i].y)
+                temp_item_list.append((distance, self.items[i]))
+        temp_item_list.sort()
+
+        for itemkey in self.queued_items_dict:
+            item = self.queued_items_dict[itemkey]
+            distance = self.getDistanceFromPlayer(item.x, item.y)
+            if distance > 30:
+                index = self.queued_items_list.index(item)
+                self.queued_items_list.remove(index)
+                del self.queued_items_dict[item.id]
+                item_index -= 1
+
+        for i in range(len(self.queued_items_list)):
+            angle = self.determine_angle(self.queued_items_list[i].x - self.player.x, self.queued_items_list[i].y - self.player.y)
+            distance = self.getDistanceFromPlayer(self.queued_items_list[i].x, self.queued_items_list[i].y)
+            items[i] = [angle, distance, self.queued_items_list[i].available, 2]
+
+        for distance, item in temp_item_list:
+            if item_index < max_items:
+                angle = self.determine_angle(item.x - self.player.x, item.y - self.player.y)
+                distance = self.getDistanceFromPlayer(item.x, item.y)
+                if distance <= 30:
+                    items[item_index] = [angle, distance, item.available, 2]
+                    item_index += 1
         return items
 
     def getProjectileObservations(self, max_projectiles=20):
@@ -455,6 +490,10 @@ class BlobEnv:
         self.update_projectiles()
         #self.player.action(action, False, self.projectiles, self.collision_env, [self.player.x + aim[0], self.player.y + aim[1]])
         self.player.action(action, False, self.projectiles, self.collision_env, None)
+        self.player_steps.append((self.player.x, self.player.y))
+        if len(self.player_steps) >= 3 and self.player_steps[-1] == self.player_steps[-3]:
+            pass
+
         if self.OBSTACLE_COLLISION and self.player.hit_wall == 1:
             reward -= self.OBSTACLE_PENALTY
             done = True
@@ -466,6 +505,7 @@ class BlobEnv:
         # enemy.move()
         # food.move()
         ##############
+        updated_items_list = list()
         items_left = 0
         for item in self.items:
             if item.available:
@@ -473,9 +513,9 @@ class BlobEnv:
                 reward += itemreward
                 if self.player.x == item.x and self.player.y == item.y:
                     item.available = 0
-                    # print(f"got an item. Plus {itemreward} points")
-            else:
-                items_left += 1
+                    items_left += 1
+                else:
+                    updated_items_list.append(item)
         if items_left == len(self.items):
             done = True
 
@@ -505,15 +545,16 @@ class BlobEnv:
                     # print("you killed a player somehow..")
 
         if self.RETURN_IMAGES:
-            new_observation = np.array(self.get_image())
             enemyTargetObservations = None
+            new_observation = np.array(self.get_image())
         else:
-            new_observation = self.getObservation()
             enemyTargetObservations = None
             normalized_observation = self.getNormalizedObservation()
+            new_observation = self.getObservation()
         # print(new_observation)
         # print(normalized_observation.flatten())
-        self.render()
+        # self.render()
+        self.items = updated_items_list # do this after the observation is received, so that the machine still sees that getting an item returns a zeroed out entry
         if reward == 0:
             reward -= self.MOVE_PENALTY
 
