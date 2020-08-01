@@ -17,8 +17,8 @@ from blobenv import BlobEnv
 import tensorflow as tf
 import os
 
-#LOAD_MOVEMENT_MODEL="./models/officialv1.2.0/2x256__1596064159__107.00max___45.44avg_-174.00min.model"
-LOAD_MOVEMENT_MODEL="./models/officialv1.2.0/2x256__1596155405__112.00max___91.46avg___71.00min.model"
+#LOAD_MOVEMENT_MODEL="./models/officialv1.2.0/2x256__1596155405__112.00max___91.46avg___71.00min.model"
+LOAD_MOVEMENT_MODEL=""
 LOAD_FIRING_MODEL=""
 
 DISCOUNT = 0.99
@@ -32,7 +32,7 @@ MEMORY_FRACTION = 0.20
 USE_CONV_NET = False
 OBSERVATION_SPACE_VALUES = (88, 1)
 HYPERPARAM_DEBUGGING=False
-USE_EPSILON=False
+USE_EPSILON=True
 dense_layers = [0, 1, 2]
 layer_sizes = [32, 64, 128]
 
@@ -40,7 +40,7 @@ layer_sizes = [32, 64, 128]
 EPISODES = 20000
 
 # Exploration settings
-epsilon = .3  # not a constant, going to be decayed
+epsilon = 1  # not a constant, going to be decayed
 EPSILON_DECAY = 0.99975
 MIN_EPSILON = 0.001
 
@@ -270,7 +270,7 @@ if __name__ == "__main__":
                         agents[i].model["movement"].save(f'models/{agents[i].layer_size}x{agents[i].dense_layer}/{MODEL_NAME}__{int(time.time())}_{max_reward:_>7.2f}max_{average_reward:_>7.2f}avg_{min_reward:_>7.2f}min.model')
                     else:
                         agents[i].model["movement"].save(
-                            f'models/officialv1.2.1/{MODEL_NAME}__{int(time.time())}_{max_reward:_>7.2f}max_{average_reward:_>7.2f}avg_{min_reward:_>7.2f}min.model')
+                            f'models/officialv1.2.2/{MODEL_NAME}__{int(time.time())}_{max_reward:_>7.2f}max_{average_reward:_>7.2f}avg_{min_reward:_>7.2f}min.model')
             if epsilon > MIN_EPSILON:
                 epsilon *= EPSILON_DECAY
                 epsilon = max(MIN_EPSILON, epsilon)

@@ -97,7 +97,7 @@ class BlobEnv:
         self.collision_env = self.create_default_env(map_=None)
         self.player = None
         self.queued_items_dict = dict()
-        self.queued_items_list = list()
+        self.queued_items_list = [None] * 5
         self.player_steps = list()
 
     def remove_player(self, player):
@@ -263,7 +263,7 @@ class BlobEnv:
         self.projectileid_observation_slot = dict()  # index in env: projectileID
         self.env = self.create_default_env(map_=None, generate_items=True)
         self.queued_items_dict = dict()
-        self.queued_items_list = list()
+        self.queued_items_list = [None] * 5
         self.player_steps = list()
         if self.USE_SPAWNPOINTS:
             spawning_point = random.choice(self.spawn_points)
@@ -363,9 +363,28 @@ class BlobEnv:
                         enemies[self.playerid_observation_slot[playerid]] = [changex, changey, enemy.health, 1]
         return enemies
 
+    def getNumUsedSlots(self):
+        used_slots = 0
+        for i in range(len(self.queued_items_list)):
+            if self.queued_items_list[i]:
+                used_slots += 1
+        return used_slots
+
+    def getAvailableItemIndex(self):
+        for i in range(len(self.queued_items_list)):
+            if not self.queued_items_list[i]:
+                return i
+        return -1
+
+    def getIndexItem(self, item):
+        for i in range(len(self.queued_items_list)):
+            if self.queued_items_list[i] and self.queued_items_list[i] == item:
+                return i
+        return -1
+
     def getItemsObservations(self, max_items=20):
-        items = [[0, 0, 0, 0]] * max_items
-        item_index = len(self.queued_items_list)
+        items = [[0, 0, 0, 2]] * max_items
+        num_used_slots = self.getNumUsedSlots()
         temp_item_list = list() # will be a list of lists -- goal is to sort the items by index and also to omit items that are already on the queue
 
         for i in range(len(self.items)):
@@ -374,27 +393,36 @@ class BlobEnv:
                 temp_item_list.append((distance, self.items[i]))
         temp_item_list.sort()
 
+        delete_item_ids = []
         for itemkey in self.queued_items_dict:
             item = self.queued_items_dict[itemkey]
             distance = self.getDistanceFromPlayer(item.x, item.y)
-            if distance > 30:
-                index = self.queued_items_list.index(item)
-                self.queued_items_list.remove(index)
-                del self.queued_items_dict[item.id]
-                item_index -= 1
+            if distance > 30 or self.queued_items_dict[itemkey].available == 0:
+                index = self.getIndexItem(item)
+                self.queued_items_list[index] = None
+                #self.queued_items_list.remove(index)
+                delete_item_ids.append(item.id)
+                num_used_slots -= 1
+
+        for itemid in delete_item_ids:
+            del self.queued_items_dict[itemid]
 
         for i in range(len(self.queued_items_list)):
-            angle = self.determine_angle(self.queued_items_list[i].x - self.player.x, self.queued_items_list[i].y - self.player.y)
-            distance = self.getDistanceFromPlayer(self.queued_items_list[i].x, self.queued_items_list[i].y)
-            items[i] = [angle, distance, self.queued_items_list[i].available, 2]
+            if self.queued_items_list[i]:
+                angle = self.determine_angle(self.queued_items_list[i].x - self.player.x, self.queued_items_list[i].y - self.player.y)
+                distance = self.getDistanceFromPlayer(self.queued_items_list[i].x, self.queued_items_list[i].y)
+                items[i] = [angle, distance, self.queued_items_list[i].available, 2]
 
         for distance, item in temp_item_list:
-            if item_index < max_items:
+            if num_used_slots < max_items:
                 angle = self.determine_angle(item.x - self.player.x, item.y - self.player.y)
                 distance = self.getDistanceFromPlayer(item.x, item.y)
                 if distance <= 30:
-                    items[item_index] = [angle, distance, item.available, 2]
-                    item_index += 1
+                    available_index = self.getAvailableItemIndex()
+                    items[available_index] = [angle, distance, item.available, 2]
+                    self.queued_items_list[available_index] = item
+                    self.queued_items_dict[item.id] = item
+                    num_used_slots += 1
         return items
 
     def getProjectileObservations(self, max_projectiles=20):

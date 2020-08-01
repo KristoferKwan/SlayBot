@@ -7,7 +7,7 @@ env.reset()
 i = 0
 
 while i < 20000:
-    if i % 100 == 0:
+    if i % 2000 == 0:
         env.reset()
     action = random.randint(0, 8)
     env.step(action)
